@@ -7,13 +7,18 @@ class CustomPCA:
         self.principal_components = None
         self.mean = None
         self.components = None
+        self.explained_variance = None
+        self.explained_variance_ratio = None
 
-    def fit_transform(self) -> np.ndarray:
+    def __standardize_matrix(self, X):
         # Standardize the data
         self.mean = np.mean(self.__X)
         X_standardized = (self.__X - np.mean(self.__X)) / np.std(self.__X)
-                
-        # Calculate covariance matrix
+        return X_standardized                
+
+    def fit_transform(self) -> np.ndarray:
+        X_standardized = self.__standardize_matrix(self.__X)
+
         concat = np.concatenate(X_standardized)
         try:
             covariance_matrix = np.cov(concat, rowvar=False)
@@ -33,7 +38,10 @@ class CustomPCA:
         self.components = eigenvectors[:, :self.n_components]
 
         # Project data onto the selected components
-        self.principal_components = np.dot(concat, self.components) 
+        self.principal_components = np.dot(concat, self.components)
+        self.calculate_explained_variance()
+        self.calculate_explained_variance_ratio(eigenvalues)
+
         return self.principal_components
 
     def inverse_transform(self, principal_components):
@@ -43,28 +51,45 @@ class CustomPCA:
     
     def calculate_error(self) -> float:
 
-        if(self.principal_components == None):
+        # X = np.transpose(self.__X, axes=(2,1,0))
+        X=self.__X
+        if not self.principal_components.any():
             print("Calculating principal Components...")
-            self.inverse_transform(self.__X)
+            self.inverse_transform(X)
 
         try:
             X_reconstructed = self.inverse_transform(self.principal_components)
-            X_reconstructed = np.transpose(np.reshape(X_reconstructed, (5490, 5490, 10)), axes=(2,0,1))
+            X_reconstructed = np.reshape(X_reconstructed, (5490, 5490, 10))
 
-            concatenated_matrix = np.concatenate(self.__X)
+            concatenated_matrix = np.concatenate(X)
 
-            mse = np.sum((concatenated_matrix - X_reconstructed) ** 2) / concatenated_matrix.size  # Divide by the total number of elements for normalization
+            mse = np.sum((self.__standardize_matrix(X) - X_reconstructed) ** 2) / concatenated_matrix.size  # Divide by the total number of elements for normalization
 
-            print("No of comps = "+str(self.n_components))
-            print("MSE = " + str(mse))
+            print("No of components = "+str(self.n_components))
+            print("MSE (Error) = " + str(mse))
 
             return mse
-        except:
+        except Exception as e:
             print("Error calculation failed! please try again...")
+            print(e)
             exit(-2)
+
+    def calculate_explained_variance(self):
+        # Calculate explained variance for each component
+        self.explained_variance = np.var(self.components)
+
+        return self.explained_variance
+    
+    def calculate_explained_variance_ratio(self, eigenvalues):
+        # Calculate explained variance ratio for each component
+        self.explained_variance_ratio = eigenvalues / self.explained_variance
+
+        return self.explained_variance_ratio
 
     
     def __del__(self):
         self.components = None
         self.mean = None
         self.n_components = None
+        self.__X = None
+        self.principal_components = None
